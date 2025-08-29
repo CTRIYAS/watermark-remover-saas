@@ -34,6 +34,7 @@ async def remove_watermark(file: UploadFile = File(...), params: Optional[str] =
 
     with tempfile.TemporaryDirectory() as tmpdir:
         input_path = Path(tmpdir) / file.filename
+
         content = await file.read()
         with open(input_path, "wb") as f:
             f.write(content)
