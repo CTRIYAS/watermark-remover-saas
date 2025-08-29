@@ -63,3 +63,15 @@ async def remove_watermark(file: UploadFile = File(...), params: Optional[str] =
             filename=f"cleaned_{file.filename}",
             media_type="video/mp4",
         )
+
+
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
+
+# Mount static directory for serving HTML and other assets
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+@app.get("/", response_class=HTMLResponse)
+async def frontend():
+    with open("static/index.html", "r") as f:
+        return HTMLResponse(f.read())
