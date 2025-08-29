@@ -1,4 +1,4 @@
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+rom fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 import json
 import subprocess
@@ -15,9 +15,7 @@ def ffmpeg_has_delogo() -> bool:
     except Exception:
         return False
 
-@app.get("/")
-def root():
-    return {"status": "ok"}
+
 
 @app.post("/remove")
 async def remove_watermark(file: UploadFile = File(...), params: Optional[str] = Form(None)):
@@ -73,5 +71,6 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.get("/", response_class=HTMLResponse)
 async def frontend():
+    
     with open("static/index.html", "r") as f:
         return HTMLResponse(f.read())
