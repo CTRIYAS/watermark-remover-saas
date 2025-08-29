@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Watermark Studio</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>
+    body { font-family: sans-serif; margin: 24px; }
+    h1 { margin-top: 0; }
+    .tools { display: grid; gap: 16px; grid-template-columns: 1fr; }
+    @media(min-width:900px) { .tools { grid-template-columns: repeat(3, 1fr); } }
+    .card { border: 1px solid #ddd; border-radius: 12px; padding: 16px; box-shadow: 0 2px 6px rgba(0,0,0,.04); }
+    label { font-weight: bold; margin: .5rem 0 .2rem; display: block; }
+    input, select, button { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 8px; }
+    button { background: #111; color: white; cursor: pointer; }
+    button:disabled { opacity: .6; cursor: not-allowed; }
+    .row { display: flex; gap: 8px; }
+    .log { font-family: monospace; font-size: 12px; margin-top: 4px; }
+    .success { color: #0a7; }
+    .error { color: #b00; }
+  </style>
+</head>
+<body>
+  <h1>Watermark Studio</h1>
+  <p>Remove or add watermarks to your video. Results are generated server-side using FFmpeg.</p>
+
+  <div class="tools">
+    <!-- Remove watermark -->
+    <div class="card">
+      <h3>Remove Watermark</h3>
+      <form id="form-remove">
+        <label>Video</label>
+        <input type="file" name="file" accept="video/*" required>
+        <label>Region (JSON: x,y,w,h)</label>
+        <input type="text" name="params" placeholder='{"x":1600,"y":900,"w":320,"h":180}'>
+        <button>Process</button>
+      </form>
+      <p class="log" id="log-remove"></p>
+      <p id="out-remove"></p>
+    </div>
+
+    <!-- Add text watermark -->
+    <div class="card">
+      <h3>Add Text Watermark</h3>
+      <form id="form-text">
+        <label>Video</label>
+        <input type="file" name="file" accept="video/*" required>
+        <label>Text</label>
+        <input type="text" name="text" required placeholder="© MyBrand">
+        <div class="row">
+          <div><label>X</label><input type="text" name="x" value="w-tw-20"></div>
+          <div><label>Y</label><input type="text" name="y" value="h-th-20"></div>
+        </div>
+        <div class="row">
+          <div><label>Font size</label><input type="number" name="fontsize" value="36"></div>
+          <div><label>Color</label><input type="text" name="color" value="white@0.7"></div>
+        </div>
+        <div class="row">
+          <div><label>Box</label><select name="box"><option>true</option><option>false</option></select></div>
+          <div><label>Box color</label><input type="text" name="boxcolor" value="black@0.4"></div>
+          <div><label>Box border</label><input type="number" name="boxborderw" value="10"></div>
+        </div>
+        <button>Add Text Watermark</button>
+      </form>
+      <p class="log" id="log-text"></p>
+      <p id="out-text"></p>
+    </div>
+
+    <!-- Add image watermark -->
+    <div class="card">
+      <h3>Add Image Watermark</h3>
+      <form id="form-image">
+        <label>Video</label>
+        <input type="file" name="file" accept="video/*" required>
+        <label>Watermark image</label>
+        <input type="file" name="watermark" accept="image/*" required>
+        <div class="row">
+          <div><label>X</label><input type="text" name="x" value="W-w-20"></div>
+          <div><label>Y</label><input type="text" name="y" value="H-h-20"></div>
+        </div>
+        <div class="row">
+          <div><label>Scale W</label><input type="number" name="scale_w"></div>
+          <div><label>Scale H</label><input type="number" name="scale_h"></div>
+          <div><label>Opacity</label><input type="number" step="0.1" min="0" max="1" name="opacity" value="0.8"></div>
+        </div>
+        <button>Add Image Watermark</button>
+      </form>
+      <p class="log" id="log-image"></p>
+      <p id="out-image"></p>
+    </div>
+  </div>
+
+  <script>
+    async function processForm(form, endpoint, logEl, outEl) {
+      logEl.textContent = "Processing...";
+      outEl.innerHTML = "";
+      const data = new FormData(form);
+      const btn = form.querySelector("button");
+      btn.disabled = true;
+      try {
+        const res = await fetch(endpoint, { method: "POST", body: data });
+        if (!res.ok) {
+          const error = await res.text();
+          throw new Error("Error: " + error);
+        }
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const cd = res.headers.get("Content-Disposition") || "";
+        const filename = cd.split("filename=")[1] || "output.mp4";
+        outEl.innerHTML = '<a class="success" href="' + url + '" download="' + filename + '">Download result</a>';
+        logEl.textContent = "Done.";
+      } catch (e) {
+        logEl.innerHTML = '<span class="error">' + e.message + '</span>';
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    document.getElementById("form-remove").onsubmit = (e) => {
+      e.preventDefault();
+      processForm(e.target, "/remove", document.getElementById("log-remove"), document.getElementById("out-remove"));
+    };
+    document.getElementById("form-text").onsubmit = (e) => {
+      e.preventDefault();
+      processForm(e.target, "/add_text", document.getElementById("log-text"), document.getElementById("out-text"));
+    };
+    document.getElementById("form-image").onsubmit = (e) => {
+      e.preventDefault();
+      processForm(e.target, "/add_image", document.getElementById("log-image"), document.getElementById("out-image"));
+    };
+  </script>
+</body>
+</html>
