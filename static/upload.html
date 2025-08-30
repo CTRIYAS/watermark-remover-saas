@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Watermark Remover</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+body{background:#1e1e1e;color:#eee;font-family:Arial,sans-serif;margin:0;padding:20px}
+.container{max-width:900px;margin:0 auto}
+h1{text-align:center;margin-bottom:20px}
+#drop{border:2px dashed #555;padding:20px;text-align:center;cursor:pointer}
+#drop.drag{background:#333}
+.preview{position:relative;margin-top:20px;display:none;border:1px solid #555}
+.preview canvas{position:absolute;top:0;left:0}
+.controls{margin-top:20px}
+.controls label{display:block;margin-top:5px}
+.controls input{width:100%;padding:5px;margin-top:2px}
+button{margin-top:10px;padding:10px;width:100%;background:#008080;color:white;border:none;cursor:pointer}
+button:disabled{background:#555}
+#result a{color:#00c589;font-weight:bold}
+</style>
+</head>
+<body>
+<div class="container">
+<h1>Watermark Remover</h1>
+<div id="drop">Drag & drop your video or click to browse.<br><input id="file" type="file" accept="video/*" style="display:none"></div>
+<div id="preview" class="preview">
+<video id="video" style="max-width:100%;visibility:hidden" muted></video>
+<canvas id="canvas"></canvas>
+</div>
+<div class="controls">
+<label>x<input id="x" type="number" value="0"></label>
+<label>y<input id="y" type="number" value="0"></label>
+<label>w<input id="w" type="number" value="100"></label>
+<label>h<input id="h" type="number" value="100"></label>
+<button id="br" type="button">Set bottom-right (320x180)</button>
+<button id="process" disabled>Remove Watermark</button>
+<div id="state"></div>
+<div id="result"></div>
+</div>
+</div>
+<script>
+const fileEl=document.getElementById('file');
+const drop=document.getElementById('drop');
+const video=document.getElementById('video');
+const canvas=document.getElementById('canvas');
+const preview=document.getElementById('preview');
+const ctx=canvas.getContext('2d');
+const xEl=document.getElementById('x');
+const yEl=document.getElementById('y');
+const wEl=document.getElementById('w');
+const hEl=document.getElementById('h');
+const br=document.getElementById('br');
+const processBtn=document.getElementById('process');
+const state=document.getElementById('state');
+const result=document.getElementById('result');
+let fileBlob=null;
+let vidW=0,vidH=0,sel={x:0,y:0,w:100,h:100};
+function draw(){
+ const cw=canvas.clientWidth,ch=canvas.clientHeight;
+ canvas.width=cw;canvas.height=ch;
+ ctx.clearRect(0,0,cw,ch);
+ if(vidW==0||vidH==0)return;
+ const r=Math.min(cw/vidW,ch/vidH);
+ const dw=vidW*r,dh=vidH*r;
+ const dx=(cw-dw)/2,dy=(ch-dh)/2;
+ ctx.drawImage(video,dx,dy,dw,dh);
+ ctx.strokeStyle="#00c589"; ctx.lineWidth=2;
+ ctx.strokeRect(dx+sel.x*r,dy+sel.y*r,sel.w*r,sel.h*r);
+}
+function load(f){
+ fileBlob=f;
+ const url=URL.createObjectURL(f);
+ video.src=url;
+ preview.style.display='block';
+ video.onloadedmetadata=()=>{
+   vidW=video.videoWidth;
+   vidH=video.videoHeight;
+   video.play().then(()=>video.pause());
+   draw();
+   processBtn.disabled=false;
+ };
+ video.onseeked=draw;
+ video.onplay=()=>video.pause();
+}
+drop.onclick=()=>fileEl.click();
+drop.ondragover=(e)=>{e.preventDefault();drop.classList.add('drag');};
+drop.ondragleave=()=>drop.classList.remove('drag');
+drop.ondrop=(e)=>{e.preventDefault();drop.classList.remove('drag'); if(e.dataTransfer.files[0]){fileEl.files=e.dataTransfer.files; load(e.dataTransfer.files[0]);}};
+fileEl.onchange=(e)=>{if(e.target.files[0]) load(e.target.files[0]);};
+let dragging=false,start={};
+canvas.onmousedown=(e)=>{
+ if(!vidW) return;
+ const rect=canvas.getBoundingClientRect();
+ const cx=e.clientX-rect.left;
+ const cy=e.clientY-rect.top;
+ const cw=canvas.clientWidth,ch=canvas.clientHeight;
+ const r=Math.min(cw/vidW,ch/vidH);
+ const dw=vidW*r,dh=vidH*r;
+ const dx=(cw-dw)/2,dy=(ch-dh)/2;
+ dragging=true;
+ start={x:(cx-dx)/r,y:(cy-dy)/r};
+};
+window.onmouseup=()=>dragging=false;
+canvas.onmousemove=(e)=>{
+ if(!dragging) return;
+ const rect=canvas.getBoundingClientRect();
+ const cx=e.clientX-rect.left;
+ const cy=e.clientY-rect.top;
+ const cw=canvas.clientWidth,ch=canvas.clientHeight;
+ const r=Math.min(cw/vidW,ch/vidH);
+ const dw=vidW*r,dh=vidH*r;
+ const dx=(cw-dw)/2,dy=(ch-dh)/2;
+ const cur={x:(cx-dx)/r,y:(cy-dy)/r};
+ const x=Math.max(0,Math.min(start.x,cur.x));
+ const y=Math.max(0,Math.min(start.y,cur.y));
+ const w=Math.max(1,Math.abs(cur.x-start.x));
+ const h=Math.max(1,Math.abs(cur.y-start.y));
+ sel={
+  x:Math.round(Math.max(0,Math.min(x,vidW-1))),
+  y:Math.round(Math.max(0,Math.min(y,vidH-1))),
+  w:Math.round(Math.max(1,Math.min(w,vidW-x))),
+  h:Math.round(Math.max(1,Math.min(h,vidH-y)))
+ };
+ xEl.value=sel.x;
+ yEl.value=sel.y;
+ wEl.value=sel.w;
+ hEl.value=sel.h;
+ draw();
+};
+[xEl,yEl,wEl,hEl].forEach(el=>{
+ el.oninput=()=>{
+   sel={
+     x:+xEl.value||0,
+     y:+yEl.value||0,
+     w:+wEl.value||1,
+     h:+hEl.value||1
+   };
+   draw();
+ };
+});
+br.onclick=()=>{
+ if(!vidW) return;
+ sel.w=320; sel.h=180;
+ sel.x=Math.max(0,vidW-sel.w-20);
+ sel.y=Math.max(0,vidH-sel.h-20);
+ xEl.value=sel.x;yEl.value=sel.y;wEl.value=sel.w;hEl.value=sel.h;
+ draw();
+};
+processBtn.onclick=async()=>{
+ if(!fileBlob) return;
+ state.innerText='Processing...';
+ result.innerHTML='';
+ processBtn.disabled=true;
+ const fd=new FormData();
+ fd.append('file',fileBlob);
+ fd.append('params',JSON.stringify(sel));
+ const resp=await fetch('/remove',{method:'POST',body:fd});
+ if(!resp.ok){
+   state.innerText='Error: '+await resp.text();
+   processBtn.disabled=false;
+   return;
+ }
+ const blob=await resp.blob();
+ const url=URL.createObjectURL(blob);
+ const cd=resp.headers.get('Content-Disposition')||'';
+ const fn=(cd.split('filename=')[1]||'output.mp4').replace(/(^\"|\"$)/g,'');
+ result.innerHTML='<a href="'+url+'" download="'+fn+'">Download result</a>';
+ state.innerText='Done.';
+ processBtn.disabled=false;
+};
+</script>
+</body>
+</html>
